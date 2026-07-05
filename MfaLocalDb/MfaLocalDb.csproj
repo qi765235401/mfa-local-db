@@ -20,8 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="data\mfa-local.db" />
     <None Remove="Assets\ne_110m_admin_0_countries.geojson" />
+    <Content Remove="data\mfa-local.db" />
     <Content Remove="Assets\ne_110m_admin_0_countries.geojson" />
+    <EmbeddedResource Include="data\mfa-local.db" />
     <EmbeddedResource Include="Assets\ne_110m_admin_0_countries.geojson" />
   </ItemGroup>
 

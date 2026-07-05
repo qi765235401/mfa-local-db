@@ -4,6 +4,7 @@ namespace MfaLocalDb;
 
 internal static class AppResources
 {
+    private const string DatabaseFileName = "mfa-local.db";
     private const string MapFileName = "ne_110m_admin_0_countries.geojson";
 
     public static string DataDirectory { get; private set; } = string.Empty;
@@ -21,9 +22,10 @@ internal static class AppResources
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(assetDirectory);
 
-        DatabasePath = Path.Combine(DataDirectory, "mfa-local.db");
+        DatabasePath = Path.Combine(DataDirectory, DatabaseFileName);
         MapPath = Path.Combine(assetDirectory, MapFileName);
 
+        ExtractResource(DatabaseFileName, DatabasePath);
         ExtractResource(MapFileName, MapPath);
     }
 

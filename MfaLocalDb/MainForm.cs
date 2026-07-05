@@ -230,7 +230,7 @@ public sealed class MainForm : Form
 
         var searchHint = new Label
         {
-            Text = "优先导入数据快照；离线检索按名称优先，正文命中排在后面。",
+            Text = "默认内置离线快照；名称优先匹配，正文命中排在后面。",
             Dock = DockStyle.Fill,
             Font = new Font("Microsoft YaHei UI", 8.8f, FontStyle.Regular),
             ForeColor = Color.FromArgb(106, 121, 140),
@@ -575,7 +575,7 @@ public sealed class MainForm : Form
             : $"搜索结果  {entries.Count}";
         _countLabel.Text = $"当前 {entries.Count} 条 / 本地库 {totalCount} 条";
         _statusLabel.Text = totalCount == 0
-            ? "本地离线数据库为空，请先导入数据快照；需要时再使用同步官网。"
+            ? "本地离线数据库为空，可导入快照修复，或使用同步官网重建。"
             : string.IsNullOrWhiteSpace(latestSyncedAt)
                 ? $"已加载离线数据库：{_database.DatabasePath}"
                 : $"已加载离线数据库 {totalCount} 条，数据时间：{latestSyncedAt}";
@@ -672,7 +672,7 @@ public sealed class MainForm : Form
         if (entry is null)
         {
             _titleLabel.Text = "请选择左侧条目";
-            _metaLabel.Text = "首次启动请优先导入数据快照；地图资源会自动释放到本机缓存，同步官网仅作备用。";
+            _metaLabel.Text = "应用默认内置离线快照；地图资源会自动释放到本机缓存，导入快照和同步官网可用于更新或修复。";
             _contentBrowser.DocumentText = BuildContentDocument(null);
             return;
         }
@@ -950,6 +950,7 @@ public sealed class MainForm : Form
         return facts.Where(item => !string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrWhiteSpace(item.Value));
     }
 }
+
 
 
 

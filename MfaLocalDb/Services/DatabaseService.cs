@@ -65,29 +65,41 @@ public sealed class DatabaseService
             Directory.CreateDirectory(directory);
         }
 
-        var tempPath = Path.Combine(directory ?? AppContext.BaseDirectory, $"import-{Guid.NewGuid():N}.db");
-        File.Copy(fullSnapshotPath, tempPath, overwrite: true);
+        var tempSnapshotPath = Path.Combine(Path.GetTempPath(), $"mfa-snapshot-{Guid.NewGuid():N}.db");
+        File.Copy(fullSnapshotPath, tempSnapshotPath, overwrite: true);
 
         try
         {
-            ValidateSnapshot(tempPath);
-
-            if (File.Exists(_databasePath))
-            {
-                File.Delete(_databasePath);
-            }
-
-            File.Move(tempPath, _databasePath);
+            ValidateSnapshot(tempSnapshotPath);
             Initialize();
-        }
-        catch
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
 
-            throw;
+            using var connection = OpenConnection();
+            connection.Open();
+            using var transaction = connection.BeginTransaction();
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                $"""
+                ATTACH DATABASE '{EscapeSqlLiteral(tempSnapshotPath)}' AS snapshot;
+
+                DELETE FROM entries;
+                DELETE FROM sqlite_sequence WHERE name = 'entries';
+
+                INSERT INTO entries (kind, region, name, title, source_url, content_text, content_html, synced_at)
+                SELECT kind, region, name, title, source_url, content_text, content_html, synced_at
+                FROM snapshot.entries;
+
+                DETACH DATABASE snapshot;
+                """;
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+        finally
+        {
+            if (File.Exists(tempSnapshotPath))
+            {
+                File.Delete(tempSnapshotPath);
+            }
         }
     }
 
@@ -310,5 +322,10 @@ public sealed class DatabaseService
     private static SqliteConnection OpenConnection(string databasePath)
     {
         return new SqliteConnection($"Data Source={databasePath}");
+    }
+
+    private static string EscapeSqlLiteral(string input)
+    {
+        return input.Replace("'", "''");
     }
 }
