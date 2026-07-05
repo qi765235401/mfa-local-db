@@ -59,3 +59,9 @@ dotnet publish .\MfaLocalDb\ -c Release
 - GitHub 仓库放源码
 - GitHub Releases 放 `内置离线快照` 的 exe
 - Release 文案明确说明快照日期、条目数量、数据来源和“非官方产品”说明
+
+## Acknowledgement
+
+This project was shared with and benefited from the LINUX DO community:
+https://linux.do/
+
