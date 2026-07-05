@@ -15,6 +15,7 @@ public sealed class MainForm : Form
 
     private readonly TextBox _searchBox = new();
     private readonly ComboBox _kindCombo = new();
+    private readonly Button _importSnapshotButton = new();
     private readonly Button _syncButton = new();
     private readonly Button _openSourceButton = new();
     private readonly Button _mapButton = new();
@@ -229,7 +230,7 @@ public sealed class MainForm : Form
 
         var searchHint = new Label
         {
-            Text = "离线检索：名称优先匹配，正文命中排在后面。",
+            Text = "优先导入数据快照；离线检索按名称优先，正文命中排在后面。",
             Dock = DockStyle.Fill,
             Font = new Font("Microsoft YaHei UI", 8.8f, FontStyle.Regular),
             ForeColor = Color.FromArgb(106, 121, 140),
@@ -248,6 +249,15 @@ public sealed class MainForm : Form
         _searchBox.Margin = new Padding(0, 3, 0, 3);
         _searchBox.TextChanged += async (_, _) => await LoadEntriesAsync();
 
+        _importSnapshotButton.Text = "导入快照";
+        _importSnapshotButton.Size = new Size(92, 32);
+        _importSnapshotButton.FlatStyle = FlatStyle.Flat;
+        _importSnapshotButton.FlatAppearance.BorderColor = Color.FromArgb(211, 220, 232);
+        _importSnapshotButton.BackColor = Color.FromArgb(32, 87, 153);
+        _importSnapshotButton.ForeColor = Color.White;
+        _importSnapshotButton.Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold);
+        _importSnapshotButton.Click += async (_, _) => await ImportSnapshotAsync();
+
         _syncButton.Text = "同步官网";
         _syncButton.Size = new Size(92, 32);
         _syncButton.FlatStyle = FlatStyle.Flat;
@@ -263,6 +273,7 @@ public sealed class MainForm : Form
             WrapContents = false,
             Margin = new Padding(0, 4, 0, 0),
         };
+        buttonRow.Controls.Add(_importSnapshotButton);
         buttonRow.Controls.Add(_syncButton);
 
         searchLayout.Controls.Add(searchTitle, 0, 0);
@@ -564,7 +575,7 @@ public sealed class MainForm : Form
             : $"搜索结果  {entries.Count}";
         _countLabel.Text = $"当前 {entries.Count} 条 / 本地库 {totalCount} 条";
         _statusLabel.Text = totalCount == 0
-            ? "本地离线数据库为空，请点击同步官网建立本地库。"
+            ? "本地离线数据库为空，请先导入数据快照；需要时再使用同步官网。"
             : string.IsNullOrWhiteSpace(latestSyncedAt)
                 ? $"已加载离线数据库：{_database.DatabasePath}"
                 : $"已加载离线数据库 {totalCount} 条，数据时间：{latestSyncedAt}";
@@ -661,7 +672,7 @@ public sealed class MainForm : Form
         if (entry is null)
         {
             _titleLabel.Text = "请选择左侧条目";
-            _metaLabel.Text = "首次启动如无数据，请点击左侧同步官网，地图资源会自动释放到本机缓存。";
+            _metaLabel.Text = "首次启动请优先导入数据快照；地图资源会自动释放到本机缓存，同步官网仅作备用。";
             _contentBrowser.DocumentText = BuildContentDocument(null);
             return;
         }
@@ -720,6 +731,50 @@ public sealed class MainForm : Form
             """;
     }
 
+    private async Task ImportSnapshotAsync()
+    {
+        if (_isSyncing)
+        {
+            return;
+        }
+
+        using var dialog = new OpenFileDialog
+        {
+            Title = "选择数据快照",
+            Filter = "SQLite 数据库 (*.db;*.sqlite)|*.db;*.sqlite|所有文件 (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        SetSyncUiState(true);
+        try
+        {
+            _statusLabel.Text = "正在导入数据快照...";
+            await Task.Run(() => _database.ImportSnapshot(dialog.FileName));
+            await LoadEntriesAsync();
+
+            var totalCount = _database.GetEntryCount();
+            var latestSyncedAt = _database.GetLatestSyncedAt();
+            var summary = string.IsNullOrWhiteSpace(latestSyncedAt)
+                ? $"快照导入完成，共 {totalCount} 条。"
+                : $"快照导入完成，共 {totalCount} 条，数据时间：{latestSyncedAt}。";
+            _statusLabel.Text = summary;
+            MessageBox.Show(this, summary, "导入快照", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            _statusLabel.Text = $"导入失败：{ex.Message}";
+            MessageBox.Show(this, $"导入失败：{ex.Message}", "导入快照", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            SetSyncUiState(false);
+        }
+    }
     private async Task SyncEntriesAsync()
     {
         if (_isSyncing)
@@ -729,7 +784,7 @@ public sealed class MainForm : Form
 
         var result = MessageBox.Show(
             this,
-            "这会从外交部官网公开页面抓取数据并写入本地数据库，首次同步可能需要几分钟。是否继续？",
+            "这会直接访问外交部官网公开页面并写入本地数据库。建议优先使用你发布的数据快照；只有在快照不可用或需要手动更新时再继续。是否仍要同步官网？",
             "同步官网",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Information);
@@ -895,6 +950,11 @@ public sealed class MainForm : Form
         return facts.Where(item => !string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrWhiteSpace(item.Value));
     }
 }
+
+
+
+
+
 
 
 

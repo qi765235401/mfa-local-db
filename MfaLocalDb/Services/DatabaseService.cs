@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using MfaLocalDb.Models;
 
 namespace MfaLocalDb.Services;
@@ -44,6 +44,51 @@ public sealed class DatabaseService
             CREATE INDEX IF NOT EXISTS idx_entries_region_name ON entries(region, name);
             """;
         command.ExecuteNonQuery();
+    }
+
+    public void ImportSnapshot(string snapshotPath)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotPath))
+        {
+            throw new InvalidOperationException("未提供快照文件路径。");
+        }
+
+        var fullSnapshotPath = Path.GetFullPath(snapshotPath);
+        if (!File.Exists(fullSnapshotPath))
+        {
+            throw new FileNotFoundException("找不到快照文件。", fullSnapshotPath);
+        }
+
+        var directory = Path.GetDirectoryName(_databasePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempPath = Path.Combine(directory ?? AppContext.BaseDirectory, $"import-{Guid.NewGuid():N}.db");
+        File.Copy(fullSnapshotPath, tempPath, overwrite: true);
+
+        try
+        {
+            ValidateSnapshot(tempPath);
+
+            if (File.Exists(_databasePath))
+            {
+                File.Delete(_databasePath);
+            }
+
+            File.Move(tempPath, _databasePath);
+            Initialize();
+        }
+        catch
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+
+            throw;
+        }
     }
 
     public IReadOnlyList<EntryListItem> SearchEntries(string kindFilter, string keyword)
@@ -224,8 +269,46 @@ public sealed class DatabaseService
         transaction.Commit();
     }
 
+    private void ValidateSnapshot(string databasePath)
+    {
+        using var connection = OpenConnection(databasePath);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'entries';
+            """;
+
+        var tableExists = Convert.ToInt32(command.ExecuteScalar()) > 0;
+        if (!tableExists)
+        {
+            throw new InvalidOperationException("快照文件缺少 entries 表，无法导入。");
+        }
+
+        command.CommandText =
+            """
+            SELECT COUNT(*)
+            FROM pragma_table_info('entries')
+            WHERE name IN ('kind', 'region', 'name', 'title', 'source_url', 'content_text', 'content_html', 'synced_at');
+            """;
+
+        var requiredColumns = Convert.ToInt32(command.ExecuteScalar());
+        if (requiredColumns < 8)
+        {
+            throw new InvalidOperationException("快照文件结构不完整，无法导入。");
+        }
+    }
+
     private SqliteConnection OpenConnection()
     {
-        return new SqliteConnection($"Data Source={_databasePath}");
+        return OpenConnection(_databasePath);
+    }
+
+    private static SqliteConnection OpenConnection(string databasePath)
+    {
+        return new SqliteConnection($"Data Source={databasePath}");
     }
 }
