@@ -1,0 +1,9 @@
+﻿bin/
+obj/
+.vs/
+MfaLocalDb/bin/
+MfaLocalDb/obj/
+data/
+single-exe-test/
+*.exe
+*.db
